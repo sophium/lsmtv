@@ -23,6 +23,20 @@ struct PlayerView: View {
         _activeSource = State(initialValue: source)
     }
 
+    /// The instant the guide should open on: the start of what is playing.
+    private var guideFocusDate: Date? {
+        switch activeSource {
+        case .liveWindow(_, let from, _):
+            return from
+        case .live:
+            return Date()
+        case .recording(let entry):
+            return entry.startsAt ?? Date()
+        case .archive:
+            return nil
+        }
+    }
+
     private var playerChannel: LiveChannel {
         switch activeSource {
         case .live(let channel), .liveWindow(let channel, _, _):
@@ -102,7 +116,7 @@ struct PlayerView: View {
             AddFavoriteView(editing: favorite, onFinish: { editingFavorite = nil })
         }
         .sheet(isPresented: $showGuide) {
-            PlayerGuideView(channel: playerChannel) { selected in
+            PlayerGuideView(channel: playerChannel, focusDate: guideFocusDate) { selected in
                 showGuide = false
                 play(selected)
             }

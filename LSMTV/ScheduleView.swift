@@ -8,6 +8,7 @@ struct ScheduleView: View {
     @State private var entries: [GuideEntry] = []
     @State private var descriptions: [Int: String] = [:]
     @State private var isLoading = false
+    @State private var scrollPosition: Int?
 
     private var day: Date {
         Calendar.current.date(byAdding: .day, value: dayOffset, to: Date()) ?? Date()
@@ -39,10 +40,19 @@ struct ScheduleView: View {
                             LazyVStack(spacing: 10) {
                                 ForEach(entries) { entry in
                                     row(for: entry)
+                                        .id(entry.id)
                                 }
                             }
+                            .scrollTargetLayout()
                             .padding(.vertical, 10)
                             .padding(.bottom, 80)
+                        }
+                        .scrollPosition(id: $scrollPosition, anchor: .center)
+                        .onChange(of: entries) { _, newEntries in
+                            focusCurrent(newEntries)
+                        }
+                        .onAppear {
+                            focusCurrent(entries)
                         }
                     }
                 }
@@ -125,6 +135,7 @@ struct ScheduleView: View {
                 ChoiceButton(title: "Šodien", isSelected: dayOffset == 0) { dayOffset = 0 }
                 ChoiceButton(title: "Rīt", isSelected: dayOffset == 1) { dayOffset = 1 }
             }
+            .focusSection()
         }
     }
 
@@ -165,6 +176,21 @@ struct ScheduleView: View {
         isLoading = false
     }
 
+    /// Opens today's schedule at the programme on air. Uses the scroll
+    /// position binding rather than `scrollTo`, because the latter moves
+    /// focus onto the target row and skips the channel/day buttons.
+    private func focusCurrent(_ items: [GuideEntry]) {
+        guard dayOffset == 0, !items.isEmpty else { return }
+        let now = Date()
+        let target = items.first { entry in
+            guard let start = entry.startsAt, let end = entry.endsAt else { return false }
+            return now >= start && now < end
+        } ?? items.first { ($0.startsAt ?? .distantPast) > now }
+            ?? items.last
+        guard let target else { return }
+        scrollPosition = target.id
+    }
+
     private static func minuteKey(_ date: Date) -> Int {
         Int(date.timeIntervalSince1970 / 60)
     }
@@ -182,18 +208,24 @@ private struct ChoiceButton: View {
     let isSelected: Bool
     let action: () -> Void
 
+    @FocusState private var isFocused: Bool
+
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 24, weight: .semibold))
-                .padding(.horizontal, 28)
-                .padding(.vertical, 14)
-                .background(
-                    Capsule().fill(isSelected ? Color.white.opacity(0.9) : Color.white.opacity(0.1))
-                )
-                .foregroundStyle(isSelected ? .black : .white)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 10)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .tint(isSelected ? Color.white : Color.white.opacity(0.18))
+        .foregroundStyle(isSelected ? .black : .white)
+        .focused($isFocused)
+        .scaleEffect(isFocused ? 1.06 : 1)
+        .animation(.easeInOut(duration: 0.15), value: isFocused)
+        .accessibilityIdentifier("chip.\(title)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
